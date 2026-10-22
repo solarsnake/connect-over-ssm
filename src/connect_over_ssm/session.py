@@ -6,7 +6,9 @@ import shutil
 from dataclasses import dataclass
 from typing import NoReturn
 
-AWS_CLI_INSTALL_URL = "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+AWS_CLI_INSTALL_URL = (
+    "https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html"
+)
 PLUGIN_INSTALL_URL = (
     "https://docs.aws.amazon.com/systems-manager/latest/userguide/"
     "session-manager-working-with-install-plugin.html"

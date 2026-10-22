@@ -77,9 +77,7 @@ def test_preflight_missing_aws(monkeypatch):
 
 
 def test_preflight_missing_plugin(monkeypatch):
-    monkeypatch.setattr(
-        session.shutil, "which", lambda name: "/bin/aws" if name == "aws" else None
-    )
+    monkeypatch.setattr(session.shutil, "which", lambda name: "/bin/aws" if name == "aws" else None)
     with pytest.raises(PreflightError, match="session-manager-plugin not found on PATH"):
         preflight()
 
