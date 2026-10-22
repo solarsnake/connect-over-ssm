@@ -3,6 +3,8 @@
 import re
 from dataclasses import dataclass
 
+# The SSM filter accepts at most 100 values; stay well under it.
+SSM_ID_CHUNK = 50
 INSTANCE_ID_RE = re.compile(r"^i-[0-9a-f]{8}([0-9a-f]{9})?$")
 
 
@@ -43,7 +45,7 @@ def _describe(ec2, kwargs, page_size):
                         state=raw["State"]["Name"],
                     )
                 )
-    return sorted(found, key=lambda i: (i.name or "", i.id))
+    return sorted(found, key=lambda i: (i.name is None, i.name or "", i.id))
 
 
 def find_instances(ec2, target: str, page_size: int | None = None) -> list[Instance]:
@@ -51,7 +53,7 @@ def find_instances(ec2, target: str, page_size: int | None = None) -> list[Insta
     filters = [{"Name": "instance-state-name", "Values": ["running"]}]
     kwargs = {"Filters": filters}
     if INSTANCE_ID_RE.match(target):
-        kwargs["InstanceIds"] = [target]
+        filters.insert(0, {"Name": "instance-id", "Values": [target]})
     else:
         filters.insert(0, {"Name": "tag:Name", "Values": [target]})
     return _describe(ec2, kwargs, page_size)
@@ -70,13 +72,15 @@ def ssm_statuses(ssm, instance_ids: list[str]) -> dict[str, str]:
     if not instance_ids:
         return {}
     statuses = {iid: "NotManaged" for iid in instance_ids}
-    pages = _paginate(
-        ssm,
-        "describe_instance_information",
-        None,
-        Filters=[{"Key": "InstanceIds", "Values": instance_ids}],
-    )
-    for page in pages:
-        for info in page["InstanceInformationList"]:
-            statuses[info["InstanceId"]] = info["PingStatus"]
+    for start in range(0, len(instance_ids), SSM_ID_CHUNK):
+        chunk = instance_ids[start : start + SSM_ID_CHUNK]
+        pages = _paginate(
+            ssm,
+            "describe_instance_information",
+            None,
+            Filters=[{"Key": "InstanceIds", "Values": chunk}],
+        )
+        for page in pages:
+            for info in page["InstanceInformationList"]:
+                statuses[info["InstanceId"]] = info["PingStatus"]
     return statuses

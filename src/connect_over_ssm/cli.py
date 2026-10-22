@@ -4,7 +4,7 @@ import argparse
 import sys
 
 import boto3
-from botocore.exceptions import BotoCoreError, ClientError
+from botocore.exceptions import BotoCoreError, ClientError, NoRegionError
 
 from . import __version__
 from .instances import Instance, find_instances, list_instances, ssm_statuses
@@ -59,7 +59,10 @@ def pick(instances: list[Instance], stdin, stderr) -> Instance | None:
         stderr.write(f"Select an instance [1-{count}]: ")
         stderr.flush()
         line = stdin.readline()
-        if not line or not line.strip():
+        if not line:
+            stderr.write("\n")
+            return None
+        if not line.strip():
             return None
         answer = line.strip()
         if answer.isascii() and answer.isdigit() and 1 <= int(answer) <= count:
@@ -132,7 +135,16 @@ def _run(args, parser) -> int:
         return 1
 
     label = f"{chosen.id} ({chosen.name or '-'})"
-    status = ssm_statuses(session.client("ssm"), [chosen.id]).get(chosen.id, "NotManaged")
+    try:
+        status = ssm_statuses(session.client("ssm"), [chosen.id]).get(chosen.id, "NotManaged")
+    except (BotoCoreError, ClientError) as exc:
+        if not args.force:
+            raise
+        print(
+            f"warning: could not check SSM status ({exc}); continuing because of --force",
+            file=sys.stderr,
+        )
+        status = "Online"
     if status != "Online" and not args.force:
         print(
             f"error: {label} is not reachable over SSM (status: {status}). "
@@ -142,7 +154,7 @@ def _run(args, parser) -> int:
         return 1
 
     print(f"Connecting to {label}...", file=sys.stderr)
-    exec_session(build_command(chosen.id, args.profile, args.region, forward))
+    exec_session(build_command(chosen.id, args.profile, session.region_name, forward))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -152,6 +164,16 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("a target is required unless --list is given")
     try:
         return _run(args, parser)
+    except KeyboardInterrupt:
+        print(file=sys.stderr)
+        print("Cancelled.", file=sys.stderr)
+        return 130
+    except NoRegionError:
+        print(
+            "error: no AWS region set (use -r or configure a default region)",
+            file=sys.stderr,
+        )
+        return 1
     except (BotoCoreError, ClientError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
