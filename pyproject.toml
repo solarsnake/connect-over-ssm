@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "connect-over-ssm"
+dynamic = ["version"]
+description = "Connect to EC2 instances over AWS Systems Manager Session Manager"
+requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+readme = "README.md"
+dependencies = ["boto3"]
+
+[project.optional-dependencies]
+dev = ["pytest", "moto[ec2]>=5", "ruff>=0.17,<0.18"]
+
+[project.urls]
+Homepage = "https://github.com/solarsnake/connect-over-ssm"
+
+[project.scripts]
+ssm-connect = "connect_over_ssm.cli:main"
+
+[tool.hatch.version]
+path = "src/connect_over_ssm/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/connect_over_ssm"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
